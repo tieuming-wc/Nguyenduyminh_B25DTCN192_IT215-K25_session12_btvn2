@@ -1,15 +1,34 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
-from service import create_shipment, get_all_shipments
+from model import CustomerModel
+from service import CustomerUpdate
 
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine) 
 app = FastAPI()
 
-@app.post("/shipments")
-def add_shipment(tracking_number: str, db: Session = Depends(get_db)):
-    return create_shipment(db, tracking_number)
-
-@app.get("/shipments")
-def get_shipments(db: Session = Depends(get_db)):
-    return get_all_shipments(db)
+@app.put("/customers/{customer_id}")
+def update_customer(
+    customer_id: int, 
+    customer_update: CustomerUpdate, 
+    db: Session = Depends(get_db)
+):
+    customer = db.query(CustomerModel).filter(CustomerModel.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    customer.full_name = customer_update.full_name
+    customer.phone = customer_update.phone
+    customer.address = customer_update.address
+    
+    db.commit()
+    db.refresh(customer)
+    
+    return {
+        "message": "Customer updated successfully",
+        "data": {
+            "id": customer.id,
+            "full_name": customer.full_name,
+            "phone": customer.phone,
+            "address": customer.address
+        }
+    }
